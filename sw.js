@@ -1,4 +1,4 @@
-const CACHE = 'hadik-plus-sw-v4';
+const CACHE = 'hadik-plus-sw-v5';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', (event) => {
