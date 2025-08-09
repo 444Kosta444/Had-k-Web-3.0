@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Hadík+ — Nokia vernosť, moderné vylepšenia (Swipe + D‑pad + klávesnica)</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #11161c;
+    --panel-2: #0f141a;
+    --text: #e8eef5;
+    --muted: #a9b4c0;
+    --accent: #21c36a; /* snake */
+    --apple: #e74c3c;
+    --bonus: #ffd54a;
+    --grid: #1b2430;
+    --border: #1f2630;
+    --btn: #1a212b;
+    --btn-hover:#232c38;
+  }
+  /* Nokia monochrome theme (toggle via .nokia on body) */
+  body.nokia {
+    --bg: #001c00;
+    --panel: #002400;
+    --panel-2:#002000;
+    --text: #b7ffb7;
+    --muted:#73c673;
+    --accent:#a8ff8a;
+    --apple:#b7ffb7; /* same mono */
+    --bonus:#e0ffe0;
+    --grid:#013401;
+    --border:#0a3b0a;
+    --btn:#033a03;
+    --btn-hover:#074407;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Arial, sans-serif}
+  .app{max-width:820px;margin:0 auto;padding:14px}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:12px;padding:10px 12px;position:sticky;top:0;z-index:3
+  }
+  .title{font-weight:800;letter-spacing:.3px;display:flex;gap:10px;align-items:center}
+  .badges{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .badge{background:#10161f;border:1px solid var(--border);border-radius:10px;padding:6px 10px;font-size:13px;color:var(--muted)}
+  .badge strong{color:var(--text)}
+
+  .panel{margin-top:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:12px;padding:12px}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  button,select{background:var(--btn);border:1px solid #243041;color:var(--text);padding:9px 10px;
+    border-radius:10px;font-weight:700;cursor:pointer;transition:transform .06s, background .15s}
+  button:hover{background:var(--btn-hover)} button:active{transform:translateY(1px)}
+  .primary{background:#15202b;border-color:#2b3a4f}
+  .danger{background:#2a1516;border-color:#4a2325;color:#ffd8d8}
+  .accent{background:#11241a;border-color:#1f3a2b;color:#bdf7d6}
+  .muted{background:#131922;border-color:#232a35;color:var(--muted)}
+
+  .canvas-wrap{position:relative;border-radius:12px;border:1px solid var(--border);overflow:hidden;background:#0b0f14}
+  #game{display:block;width:100%;height:auto;image-rendering:pixelated;background:
+    repeating-linear-gradient(to right,var(--grid) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(to bottom,var(--grid) 0 1px, transparent 1px 24px), #0b0f14;
+    /* critical for iOS touch */
+    touch-action:none; -ms-touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.7);backdrop-filter:blur(3px)}
+  .overlay.active{display:flex}
+  .overlay .box{background:#111821;border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;max-width:460px}
+  .grid-info{font-size:12px;color:var(--muted);text-align:center;margin-top:6px}
+
+  .dpad{margin-top:10px;display:grid;grid-template-columns:72px 72px 72px;grid-template-rows:72px 72px 72px;
+    gap:8px;justify-content:center;touch-action:manipulation;user-select:none}
+  .dpad button{width:72px;height:72px;border-radius:12px;font-size:16px}
+  .dpad .empty{visibility:hidden}
+  @media (max-width:420px){
+    .dpad{grid-template-columns:64px 64px 64px;grid-template-rows:64px 64px 64px}
+    .dpad button{width:64px;height:64px}
+  }
+
+  /* small status row */
+  .status{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);justify-content:center;margin-top:6px}
+</style>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d0f12">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+  }
+</script>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">🐍 Hadík+ <small style="color:var(--muted);font-weight:600">Nokia feeling • moderné upgrady</small></div>
+    <div class="badges">
+      <div class="badge">Skóre: <strong id="score">0</strong></div>
+      <div class="badge">Rekord: <strong id="hiscore">0</strong></div>
+      <div class="badge">Rýchlosť: <strong id="speedLabel">6</strong></div>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="topbar">
+      <div class="controls">
+        <button id="startBtn" class="primary">▶︎ Štart</button>
+        <button id="pauseBtn" class="muted" disabled>⏸︎ Pauza</button>
+        <button id="resetBtn" class="danger">⟲ Reštart</button>
+      </div>
+      <div class="controls">
+        <label>Režim
+          <select id="themeSel">
+            <option value="modern">Modern</option>
+            <option value="nokia">Nokia monochrome</option>
+          </select>
+        </label>
+        <label>Okraje
+          <select id="edgeSel" title="Ako sa správajú okraje">
+            <option value="walls">Steny (klasika)</option>
+            <option value="wrap">Wrap (Snake II)</option>
+          </select>
+        </label>
+        <label>Rýchlosť
+          <select id="speedSel">
+            <option value="3">1</option>
+            <option value="4">2</option>
+            <option value="5">3</option>
+            <option value="6" selected>4</option>
+            <option value="7">5</option>
+            <option value="8">6</option>
+            <option value="9">7</option>
+            <option value="10">8</option>
+            <option value="12">9</option>
+          </select>
+        </label>
+        <label>Auto-zrýchľovanie
+          <select id="rampSel">
+            <option value="on">Zapnuté</option>
+            <option value="off">Vypnuté</option>
+          </select>
+        </label>
+        <label>Bludisko
+          <select id="mazeSel">
+            <option value="none">Žiadne</option>
+            <option value="box">Rám</option>
+            <option value="cross">Kríž</option>
+            <option value="spiral">Špirála</option>
+            <option value="steps">Schody</option>
+          </select>
+        </label>
+        <label>Zvuky
+          <select id="soundSel">
+            <option value="on">Zapnuté</option>
+            <option value="off">Vypnuté</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="520" height="520" aria-label="Herné plátno"></canvas>
+
+      <div id="overlay" class="overlay active" role="dialog" aria-live="polite">
+        <div class="box">
+          <h2 id="overlayTitle">Hadík+</h2>
+          <p id="overlayText">Nastav režim a stlač „Začať hru“ alebo ťukni/prstom potiahni na plátne.</p>
+          <button id="overlayBtn" class="accent">Začať hru</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-info">Ovládanie: šípky / WASD • medzerník = pauza • **SWIPE po plátne** • dotykový D-pad nižšie.</div>
+    <div class="status">
+      <div>Jablko = +1</div>
+      <div>Bonus „myš“ = +5 (mizne po čase, hýbe sa)</div>
+      <div>Auto-zrýchlenie každých 5 jabĺk (ak zap.)</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="dpad" aria-label="Dotykový ovládač">
+      <span class="empty"></span>
+      <button id="btnUp">▲</button>
+      <span class="empty"></span>
+      <button id="btnLeft">◀</button>
+      <span class="empty"></span>
+      <button id="btnRight">▶</button>
+      <span class="empty"></span>
+      <button id="btnDown">▼</button>
+      <span class="empty"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== Utilities =====
+  function randInt(min,max){return min+Math.floor(Math.random()*(max-min+1));}
+
+  // ===== DOM =====
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayText = document.getElementById('overlayText');
+
+  const scoreEl = document.getElementById('score');
+  const hiscoreEl = document.getElementById('hiscore');
+  const speedLabel = document.getElementById('speedLabel');
+
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const speedSel = document.getElementById('speedSel');
+  const edgeSel = document.getElementById('edgeSel');
+  const themeSel = document.getElementById('themeSel');
+  const mazeSel = document.getElementById('mazeSel');
+  const rampSel = document.getElementById('rampSel');
+  const soundSel = document.getElementById('soundSel');
+
+  const DPAD = { up:'btnUp', down:'btnDown', left:'btnLeft', right:'btnRight' };
+
+  // ===== Settings (persist) =====
+  const settingsKey = 'hadik_plus_settings';
+  function loadSettings(){
+    try{
+      const s = JSON.parse(localStorage.getItem(settingsKey)||'{}');
+      if (s.speed) speedSel.value = s.speed;
+      if (s.edge) edgeSel.value = s.edge;
+      if (s.theme) themeSel.value = s.theme;
+      if (s.maze) mazeSel.value = s.maze;
+      if (s.ramp) rampSel.value = s.ramp;
+      if (s.sound) soundSel.value = s.sound;
+    }catch(e){}
+    applyTheme();
+  }
+  function saveSettings(){
+    const s = { speed:speedSel.value, edge:edgeSel.value, theme:themeSel.value, maze:mazeSel.value, ramp:rampSel.value, sound:soundSel.value };
+    localStorage.setItem(settingsKey, JSON.stringify(s));
+  }
+
+  // ===== Theme =====
+  function applyTheme(){
+    if (themeSel.value === 'nokia') document.body.classList.add('nokia');
+    else document.body.classList.remove('nokia');
+  }
+
+  // ===== Audio (WebAudio beeps) =====
+  let audioCtx = null;
+  function ensureAudio(){
+    if (audioCtx || soundSel.value==='off') return;
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  }
+  function beep(freq=600, ms=80, type='square', vol=0.1){
+    if (soundSel.value==='off' || !audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    setTimeout(()=>{o.stop();}, ms);
+  }
+  function eatBeep(){ beep(740,70,'square',0.12); }
+  function bonusBeep(){ beep(900,90,'square',0.12); }
+  function crashBeep(){ beep(180,220,'sawtooth',0.14); }
+
+  // ===== Grid & Game State =====
+  let COLS=24, ROWS=24, cell=20;
+  function fitCanvas(){
+    const wrap = canvas.parentElement;
+    const size = Math.min(wrap.clientWidth, 640);
+    cell = Math.floor(size/Math.max(COLS,ROWS));
+    canvas.width = COLS*cell;
+    canvas.height = ROWS*cell;
+  }
+
+  let snake=[], dir={x:1,y:0}, nextDir={x:1,y:0}, grow=0;
+  let apple={x:10,y:10};
+  let bonus=null; // {x,y,ttlMs,moveEvery,accum}
+  let running=false, paused=false, gameOver=false;
+  let lastTs=0, accum=0;
+  let baseMPS = Number(speedSel.value) || 6;
+  let MPS = baseMPS, stepMs = 1000/baseMPS;
+  let hiscore = Number(localStorage.getItem('hadik_plus_hiscore')||0);
+  hiscoreEl.textContent = String(hiscore);
+  speedLabel.textContent = String(baseMPS);
+
+  // Maze walls set (index = y*COLS + x)
+  let walls = new Set();
+  function idx(x,y){return y*COLS+x;}
+
+  function buildMaze(name){
+    walls.clear();
+    if (name==='none') return;
+    const margin = 1;
+    const maxX = COLS-1, maxY = ROWS-1;
+
+    if (name==='box'){
+      for(let x=margin;x<COLS-margin;x++){
+        walls.add(idx(x,margin));
+        walls.add(idx(x,maxY-margin));
+      }
+      for(let y=margin;y<ROWS-margin;y++){
+        walls.add(idx(margin,y));
+        walls.add(idx(maxX-margin,y));
+      }
+    } else if (name==='cross'){
+      const cx=Math.floor(COLS/2), cy=Math.floor(ROWS/2);
+      for(let x=margin+2;x<COLS-(margin+2);x++) walls.add(idx(x,cy));
+      for(let y=margin+2;y<ROWS-(margin+2);y++) walls.add(idx(cx,y));
+    } else if (name==='spiral'){
+      let x0=margin+1, y0=margin+1, x1=maxX-(margin+1), y1=maxY-(margin+1);
+      while(x0<=x1 && y0<=y1){
+        for(let x=x0;x<=x1;x++) walls.add(idx(x,y0));
+        for(let y=y0;y<=y1;y++) walls.add(idx(x1,y));
+        if (y0<y1) for(let x=x1;x>=x0;x--) walls.add(idx(x,y1));
+        if (x0<x1) for(let y=y1;y>=y0;y++) walls.add(idx(x0,y));
+        x0+=2; y0+=2; x1-=2; y1-=2;
+      }
+    } else if (name==='steps'){
+      for(let y=margin+2;y<ROWS-(margin+2);y+=2){
+        const start = (y%4===0)? margin+2 : Math.floor(COLS*0.35);
+        const end = (y%4===0)? Math.floor(COLS*0.65) : COLS-(margin+2);
+        for(let x=start;x<end;x++) walls.add(idx(x,y));
+      }
+    }
+  }
+
+  function placeApple(){
+    const occ = new Set(walls);
+    for(const s of snake) occ.add(idx(s.x,s.y));
+    let free=[];
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+      if (!occ.has(idx(x,y))) free.push({x,y});
+    }
+    if (free.length===0){ endGame(); return; }
+    apple = free[randInt(0,free.length-1)];
+  }
+
+  function maybeSpawnBonus(){
+    if (bonus || Math.random()>0.35) return;
+    const occ = new Set(walls);
+    for(const s of snake) occ.add(idx(s.x,s.y));
+    occ.add(idx(apple.x,apple.y));
+    let free=[];
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+      if (!occ.has(idx(x,y))) free.push({x,y});
+    }
+    if (!free.length) return;
+    bonus = free[randInt(0,free.length-1)];
+    bonus.ttl = 9000; // ms
+    bonus.accum = 0;
+    bonus.step = 400; // move every ms
+    bonusBeep();
+  }
+
+  function moveBonus(dt){
+    if (!bonus) return;
+    bonus.ttl -= dt;
+    bonus.accum += dt;
+    if (bonus.ttl<=0){ bonus=null; return; }
+    if (bonus.accum >= bonus.step){
+      bonus.accum = 0;
+      const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+      for (let k=0;k<4;k++){
+        const d = dirs[randInt(0,dirs.length-1)];
+        let nx = bonus.x + d.x, ny = bonus.y + d.y;
+        if (edgeSel.value==='wrap'){
+          nx = (nx+COLS)%COLS;
+          ny = (ny+ROWS)%ROWS;
+        }
+        if (nx<0||nx>=COLS||ny<0||ny>=ROWS) continue;
+        if (walls.has(idx(nx,ny))) continue;
+        let onSnake=false;
+        for(const s of snake){ if (s.x===nx && s.y===ny){ onSnake=true; break; } }
+        if (!onSnake){ bonus.x=nx; bonus.y=ny; break; }
+      }
+    }
+  }
+
+  function updateScore(s){
+    scoreEl.textContent = String(s);
+    if (s > hiscore){
+      hiscore = s;
+      localStorage.setItem('hadik_plus_hiscore', String(hiscore));
+      hiscoreEl.textContent = String(hiscore);
+    }
+  }
+
+  function reset(){
+    running=false;paused=false;gameOver=false;
+    accum=0;lastTs=0;
+    baseMPS = Number(speedSel.value)||6;
+    MPS = baseMPS; stepMs = 1000/MPS;
+    speedLabel.textContent = String(MPS);
+
+    fitCanvas();
+    const cx=Math.floor(COLS/2), cy=Math.floor(ROWS/2);
+    snake=[{x:cx,y:cy},{x:cx-1,y:cy},{x:cx-2,y:cy},{x:cx-3,y:cy}];
+    dir={x:1,y:0}; nextDir={x:1,y:0}; grow=0;
+    walls.clear();
+    buildMaze(mazeSel.value);
+    placeApple();
+    bonus=null;
+    updateScore(0);
+    render();
+  }
+
+  function start(){
+    if (gameOver) reset();
+    running=true; paused=false; pauseBtn.disabled=false;
+    overlay.classList.remove('active');
+    ensureAudio();
+    requestAnimationFrame(loop);
+  }
+
+  function pause(){
+    paused=!paused;
+    pauseBtn.textContent = paused ? '▶︎ Pokračovať' : '⏸︎ Pauza';
+    if (!paused && running) requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running=false; gameOver=true;
+    overlay.classList.add('active');
+    overlayTitle.textContent='Koniec hry';
+    overlayText.innerHTML = `Skóre: <strong>${snake.length-4}</strong>`;
+    crashBeep();
+  }
+
+  function loop(ts){
+    if (!running || paused) return;
+    if (!lastTs) lastTs = ts;
+    const dt = ts - lastTs; lastTs = ts;
+    accum += dt;
+    moveBonus(dt);
+
+    while (accum >= stepMs){
+      step();
+      accum -= stepMs;
+    }
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function step(){
+    if ((nextDir.x !== -dir.x) || (nextDir.y !== -dir.y)) dir = nextDir;
+    const head = snake[0];
+    let nx = head.x + dir.x, ny = head.y + dir.y;
+
+    if (edgeSel.value==='wrap'){
+      nx = (nx+COLS)%COLS;
+      ny = (ny+ROWS)%ROWS;
+    }
+
+    if (nx<0||nx>=COLS||ny<0||ny>=ROWS){ endGame(); return; }
+    if (walls.has(idx(nx,ny))){ endGame(); return; }
+
+    for (let i=0;i<snake.length;i++){
+      if (snake[i].x===nx && snake[i].y===ny){ endGame(); return; }
+    }
+
+    snake.unshift({x:nx,y:ny});
+
+    if (nx===apple.x && ny===apple.y){
+      grow += 1;
+      eatBeep();
+      updateScore(snake.length-4);
+      placeApple();
+      maybeSpawnBonus();
+      if (rampSel.value==='on'){
+        const eaten = snake.length-4;
+        if (eaten>0 && eaten%5===0 && MPS<16){
+          MPS += 1; stepMs = 1000/MPS;
+          speedLabel.textContent = String(MPS);
+        }
+      }
+    }
+
+    if (bonus && nx===bonus.x && ny===bonus.y){
+      grow += 2;
+      updateScore((snake.length-4)+4);
+      bonus=null;
+      bonusBeep();
+    }
+
+    if (grow>0){ grow -= 1; } else { snake.pop(); }
+  }
+
+  // ===== Rendering =====
+  function drawCell(x,y,colorVar){
+    const px = x*cell, py=y*cell;
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue(colorVar) || '#21c36a';
+    ctx.fillRect(px+1, py+1, cell-2, cell-2);
+  }
+
+  function render(){
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bg') || '#000';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = themeSel.value==='nokia' ? '#0b3a0b' : '#16202b';
+    walls.forEach(i=>{
+      const y = Math.floor(i/COLS), x = i%COLS;
+      ctx.fillRect(x*cell+1, y*cell+1, cell-2, cell-2);
+    });
+
+    drawCell(apple.x, apple.y, '--apple');
+
+    if (bonus){
+      if (bonus.ttl>2000 || Math.floor(bonus.ttl/200)%2===0){
+        drawCell(bonus.x, bonus.y, '--bonus');
+      }
+    }
+
+    for (let i=0;i<snake.length;i++){
+      const s = snake[i];
+      drawCell(s.x, s.y, '--accent');
+      if (i===0){
+        ctx.fillStyle = themeSel.value==='nokia' ? '#001500' : '#0c0c0c';
+        const eye = Math.max(2, Math.floor(cell*0.14));
+        const cx = s.x*cell, cy=s.y*cell;
+        if (dir.x===1){
+          ctx.fillRect(cx+cell-6, cy+4, eye, eye);
+          ctx.fillRect(cx+cell-6, cy+cell-4-eye, eye, eye);
+        } else if (dir.x===-1){
+          ctx.fillRect(cx+4, cy+4, eye, eye);
+          ctx.fillRect(cx+4, cy+cell-4-eye, eye, eye);
+        } else if (dir.y===1){
+          ctx.fillRect(cx+4, cy+cell-6, eye, eye);
+          ctx.fillRect(cx+cell-4-eye, cy+cell-6, eye, eye);
+        } else {
+          ctx.fillRect(cx+4, cy+4, eye, eye);
+          ctx.fillRect(cx+cell-4-eye, cy+4, eye, eye);
+        }
+      }
+    }
+
+    ctx.strokeStyle = themeSel.value==='nokia' ? '#0c460c' : '#1e2631';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1,1, canvas.width-2, canvas.height-2);
+  }
+
+  // ===== Inputs: Keyboard =====
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key;
+    if (k===' '){
+      if (running){ pause(); }
+      e.preventDefault(); return;
+    }
+    const nd = (k==='ArrowUp'||k==='w')?{x:0,y:-1}:
+               (k==='ArrowDown'||k==='s')?{x:0,y:1}:
+               (k==='ArrowLeft'||k==='a')?{x:-1,y:0}:
+               (k==='ArrowRight'||k==='d')?{x:1,y:0}:null;
+    if (nd){
+      if (!((nd.x===-dir.x)&&(nd.y===-dir.y))) nextDir = nd;
+    }
+  }, {passive:false});
+
+  // ===== Inputs: D‑pad (touch + mouse) =====
+  function bindDpad(id, nd){
+    const btn = document.getElementById(id);
+    const set = ()=>{ if (!((nd.x===-dir.x) && (nd.y===-dir.y))){ nextDir = nd; } };
+    btn.addEventListener('touchstart', (e)=>{ set(); e.preventDefault(); }, {passive:false});
+    btn.addEventListener('mousedown', set);
+  }
+  bindDpad('btnUp',   {x:0,y:-1});
+  bindDpad('btnDown', {x:0,y:1});
+  bindDpad('btnLeft', {x:-1,y:0});
+  bindDpad('btnRight',{x:1,y:0});
+
+  // ===== Inputs: Swipe na plátne (touch + pointer) =====
+  let swipeActive=false, sx=0, sy=0;
+  function setDir(nd){ if (!((nd.x===-dir.x)&&(nd.y===-dir.y))) nextDir=nd; }
+  function startGesture(x,y){ swipeActive=true; sx=x; sy=y; if(!running) start(); }
+  function moveGesture(x,y){
+    if (!swipeActive) return;
+    const dx=x-sx, dy=y-sy;
+    if (Math.abs(dx)<10 && Math.abs(dy)<10) return;
+    const nd = (Math.abs(dx)>Math.abs(dy)) ? (dx>0?{x:1,y:0}:{x:-1,y:0}) : (dy>0?{x:0,y:1}:{x:0,y:-1});
+    setDir(nd);
+    sx=x; sy=y; // allow chained turns
+  }
+  function endGesture(){ swipeActive=false; }
+
+  // Touch events (iOS)
+  canvas.addEventListener('touchstart', (e)=>{
+    const t = e.touches[0]; const r = canvas.getBoundingClientRect();
+    startGesture(t.clientX - r.left, t.clientY - r.top);
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchmove', (e)=>{
+    const t = e.touches[0]; const r = canvas.getBoundingClientRect();
+    moveGesture(t.clientX - r.left, t.clientY - r.top);
+    e.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchend', endGesture);
+
+  // Pointer/mouse fallback
+  canvas.addEventListener('pointerdown', (e)=>{ startGesture(e.offsetX, e.offsetY); e.preventDefault(); });
+  canvas.addEventListener('pointermove', (e)=>{ moveGesture(e.offsetX, e.offsetY); e.preventDefault(); });
+  canvas.addEventListener('pointerup', endGesture);
+  canvas.addEventListener('pointercancel', endGesture);
+  canvas.addEventListener('mousedown', (e)=>{ startGesture(e.offsetX, e.offsetY); });
+  canvas.addEventListener('mousemove', (e)=>{ moveGesture(e.offsetX, e.offsetY); });
+  canvas.addEventListener('mouseup', endGesture);
+
+  // ===== Buttons & overlay =====
+  startBtn.addEventListener('click', start);
+  pauseBtn.addEventListener('click', pause);
+  resetBtn.addEventListener('click', ()=>{
+    reset();
+    overlay.classList.add('active');
+    overlayText.textContent='Nastav režim a stlač „Začať hru“.';
+  });
+  overlayBtn.addEventListener('click', start);
+  overlay.addEventListener('click', (e)=>{
+    // click anywhere on overlay to start (not just the button)
+    if (e.target === overlay || e.target.closest('.box')) start();
+  });
+
+  [speedSel, edgeSel, themeSel, mazeSel, rampSel, soundSel].forEach(el=>{
+    el.addEventListener('change', ()=>{ saveSettings(); if (el===themeSel) applyTheme(); reset(); });
+  });
+
+  // Init
+  window.addEventListener('resize', ()=>{ fitCanvas(); render(); });
+  loadSettings();
+  fitCanvas();
+  reset();
+</script>
+</body>
+</html>
